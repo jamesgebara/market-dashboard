@@ -1,0 +1,132 @@
+import { useMarketData } from '../hooks/useMarketData';
+import IndexCard from './IndexCard';
+import VolatilityChart from './VolatilityChart';
+import StocksTable from './StocksTable';
+import { RefreshCw, TrendingUp, AlertTriangle, Clock } from 'lucide-react';
+
+function MarketStatusBanner({ marketState }: { marketState?: string }) {
+  if (!marketState) return null;
+
+  const configs: Record<string, { label: string; desc: string; cls: string }> = {
+    REGULAR: { label: 'Market Open', desc: 'NYSE & NASDAQ trading in session', cls: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
+    PRE: { label: 'Pre-Market', desc: 'Extended hours trading 4:00 AM – 9:30 AM ET', cls: 'bg-blue-500/10 border-blue-500/30 text-blue-400' },
+    PREPRE: { label: 'Pre-Market', desc: 'Extended hours trading 4:00 AM – 9:30 AM ET', cls: 'bg-blue-500/10 border-blue-500/30 text-blue-400' },
+    POST: { label: 'After Hours', desc: 'Extended hours trading 4:00 PM – 8:00 PM ET', cls: 'bg-purple-500/10 border-purple-500/30 text-purple-400' },
+    POSTPOST: { label: 'After Hours', desc: 'Extended hours trading 4:00 PM – 8:00 PM ET', cls: 'bg-purple-500/10 border-purple-500/30 text-purple-400' },
+    CLOSED: { label: 'Market Closed', desc: 'Regular trading hours: 9:30 AM – 4:00 PM ET', cls: 'bg-gray-500/10 border-gray-500/30 text-gray-400' },
+  };
+
+  const cfg = configs[marketState] ?? configs.CLOSED;
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs ${cfg.cls}`}>
+      <Clock size={12} />
+      <span className="font-semibold">{cfg.label}</span>
+      <span className="text-current opacity-70">· {cfg.desc}</span>
+    </div>
+  );
+}
+
+export default function MarketDashboard() {
+  const { data, loading, error, refetch } = useMarketData(30000);
+
+  const vixQuote = data?.indices.find(q => q.symbol === '^VIX');
+  const marketState = data?.indices[0]?.marketState;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-gray-400 text-sm">Fetching market data…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center max-w-sm">
+          <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-white font-semibold mb-1">Failed to load market data</p>
+          <p className="text-gray-400 text-sm mb-4">{error}</p>
+          <button onClick={refetch} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Header */}
+      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <TrendingUp className="text-blue-400" size={22} />
+            <h1 className="text-lg font-bold tracking-tight">Market Volatility Dashboard</h1>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {marketState && <MarketStatusBanner marketState={marketState} />}
+            <button
+              onClick={refetch}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              <RefreshCw size={12} />
+              Refresh
+            </button>
+            {data && (
+              <span className="text-xs text-gray-600">
+                Updated {data.lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Indices */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Major Indices</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {data?.indices.map(q => <IndexCard key={q.symbol} quote={q} />)}
+          </div>
+        </section>
+
+        {/* VIX Chart */}
+        <section className="bg-gray-800 rounded-xl border border-gray-700 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold">VIX — Volatility Index (90-Day)</h2>
+              <p className="text-xs text-gray-500 mt-0.5">CBOE Volatility Index measuring S&amp;P 500 expected volatility over the next 30 days</p>
+            </div>
+            {vixQuote && (
+              <div className="text-right">
+                <div className="text-2xl font-bold">{vixQuote.regularMarketPrice.toFixed(2)}</div>
+                <div className={`text-sm font-semibold ${vixQuote.regularMarketChangePercent >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {vixQuote.regularMarketChangePercent >= 0 ? '+' : ''}{vixQuote.regularMarketChangePercent.toFixed(2)}%
+                </div>
+              </div>
+            )}
+          </div>
+          <VolatilityChart data={data?.vixHistory ?? []} currentVix={vixQuote?.regularMarketPrice} />
+        </section>
+
+        {/* Stocks Table */}
+        <section className="bg-gray-800 rounded-xl border border-gray-700">
+          <div className="p-5 border-b border-gray-700">
+            <h2 className="text-base font-bold">Stocks & ETFs</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Including pre-market and after-hours extended trading prices</p>
+          </div>
+          <StocksTable quotes={data?.stocks ?? []} />
+        </section>
+
+        {/* Footer */}
+        <footer className="text-center text-xs text-gray-600 pb-4">
+          Data sourced from Yahoo Finance · Refreshes every 30 seconds · After-hours prices may have 15-min delay
+        </footer>
+      </main>
+    </div>
+  );
+}
