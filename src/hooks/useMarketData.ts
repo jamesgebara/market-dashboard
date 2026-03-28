@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { MarketData, Quote, ChartPoint } from '../types/market';
-import { getMockIndices, getMockStocks, generateVixHistory } from '../lib/mockData';
+import { getMockIndices, getMockStocks, getPlaceholderQuote, generateVixHistory } from '../lib/mockData';
 
 const INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^DJI', '^RUT', '^VIX'];
 export const DEFAULT_STOCK_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AMD', 'SPY', 'QQQ'];
@@ -52,9 +52,15 @@ export function useMarketData(stockSymbols: string[], refreshInterval = 30000) {
 
     const live = !!(liveIndices && liveStocks);
     setIsLive(live);
+    const mockStocks = getMockStocks();
+    const mockSymbols = new Set(mockStocks.map(q => q.symbol));
+    const fallbackStocks = [
+      ...mockStocks,
+      ...symbols.filter(s => !mockSymbols.has(s)).map(getPlaceholderQuote),
+    ];
     setData({
       indices: liveIndices ?? getMockIndices(),
-      stocks: liveStocks ?? getMockStocks(),
+      stocks: liveStocks ?? fallbackStocks,
       vixHistory: liveVix ?? generateVixHistory(),
       lastUpdated: new Date(),
     });

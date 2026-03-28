@@ -1,20 +1,28 @@
-import { X } from 'lucide-react';
 import type { Quote } from '../types/market';
 
-function fmt(n: number, decimals = 2) {
-  return n?.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) ?? '—';
+function fmt(n: number, d = 2) {
+  return n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 }
 function fmtPct(n: number) {
   if (n == null) return '—';
-  return `${n >= 0 ? '+' : ''}${fmt(n)}%`;
+  const pos = n >= 0;
+  return <span style={{ color: pos ? 'var(--neon-green)' : 'var(--neon-red)' }}>{pos ? '▲' : '▼'}{Math.abs(n).toFixed(2)}%</span>;
 }
 function fmtVol(n: number) {
   if (!n) return '—';
   if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
-  return String(n);
+  return (n / 1e3).toFixed(0) + 'K';
 }
+
+const STATE_LABELS: Record<string, { label: string; color: string }> = {
+  REGULAR:  { label: 'OPEN',   color: 'var(--neon-green)' },
+  PRE:      { label: 'PRE',    color: 'var(--neon-cyan)' },
+  PREPRE:   { label: 'PRE',    color: 'var(--neon-cyan)' },
+  POST:     { label: 'A/H',    color: 'var(--neon-magenta)' },
+  POSTPOST: { label: 'A/H',    color: 'var(--neon-magenta)' },
+  CLOSED:   { label: 'CLOSED', color: 'rgba(0,255,65,0.35)' },
+};
 
 interface Props {
   quotes: Quote[];
@@ -22,94 +30,109 @@ interface Props {
   onRemove?: (ticker: string) => void;
 }
 
-function MarketStateChip({ state }: { state: Quote['marketState'] }) {
-  const configs: Record<string, { label: string; cls: string }> = {
-    REGULAR: { label: 'Open', cls: 'bg-emerald-500/20 text-emerald-400' },
-    PRE: { label: 'Pre', cls: 'bg-blue-500/20 text-blue-400' },
-    PREPRE: { label: 'Pre', cls: 'bg-blue-500/20 text-blue-400' },
-    POST: { label: 'After', cls: 'bg-purple-500/20 text-purple-400' },
-    POSTPOST: { label: 'After', cls: 'bg-purple-500/20 text-purple-400' },
-    CLOSED: { label: 'Closed', cls: 'bg-gray-500/20 text-gray-400' },
-  };
-  const cfg = configs[state] ?? configs.CLOSED;
-  return (
-    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cfg.cls}`}>{cfg.label}</span>
-  );
-}
+const th: React.CSSProperties = {
+  padding: '8px 10px',
+  fontSize: 10,
+  letterSpacing: 2,
+  color: 'var(--neon-magenta)',
+  borderBottom: '1px solid var(--neon-magenta)',
+  fontFamily: 'Share Tech Mono, monospace',
+  textAlign: 'left',
+  whiteSpace: 'nowrap',
+};
+const thR: React.CSSProperties = { ...th, textAlign: 'right' };
 
 export default function StocksTable({ quotes, customTickers = [], onRemove }: Props) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Share Tech Mono, monospace' }}>
         <thead>
-          <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-700">
-            <th className="text-left py-2 px-3">Symbol</th>
-            <th className="text-right py-2 px-3">Price</th>
-            <th className="text-right py-2 px-3">Change</th>
-            <th className="text-right py-2 px-3">After Hrs</th>
-            <th className="text-right py-2 px-3">Ah Chg</th>
-            <th className="text-right py-2 px-3 hidden sm:table-cell">Volume</th>
-            <th className="text-right py-2 px-3 hidden md:table-cell">52W Range</th>
-            <th className="text-center py-2 px-3">Status</th>
-            <th className="py-2 px-2"></th>
+          <tr>
+            <th style={th}>SYMBOL</th>
+            <th style={thR}>PRICE</th>
+            <th style={thR}>CHG%</th>
+            <th style={thR}>EXT PRICE</th>
+            <th style={thR}>EXT CHG%</th>
+            <th style={{ ...thR, display: 'table-cell' }} className="hidden-xs">VOL</th>
+            <th style={{ ...thR, display: 'table-cell' }} className="hidden-sm">52W RANGE</th>
+            <th style={{ ...th, textAlign: 'center' }}>STATUS</th>
+            <th style={{ ...th, padding: '8px 6px' }}></th>
           </tr>
         </thead>
         <tbody>
-          {quotes.map(q => {
-            const dayPositive = q.regularMarketChangePercent >= 0;
+          {quotes.map((q, i) => {
+            const isCustom = customTickers.includes(q.symbol);
             const hasPost = q.marketState === 'POST' || q.marketState === 'POSTPOST';
-            const hasPre = q.marketState === 'PRE' || q.marketState === 'PREPRE';
+            const hasPre  = q.marketState === 'PRE'  || q.marketState === 'PREPRE';
             const afterPrice = hasPost ? q.postMarketPrice : hasPre ? q.preMarketPrice : null;
-            const afterPct = hasPost ? q.postMarketChangePercent : hasPre ? q.preMarketChangePercent : null;
-            const afterPositive = (afterPct ?? 0) >= 0;
+            const afterPct   = hasPost ? q.postMarketChangePercent : hasPre ? q.preMarketChangePercent : null;
 
             const range = q.fiftyTwoWeekHigh - q.fiftyTwoWeekLow;
-            const pct52w = range > 0 ? ((q.regularMarketPrice - q.fiftyTwoWeekLow) / range) * 100 : 0;
+            const pct52 = range > 0 ? ((q.regularMarketPrice - q.fiftyTwoWeekLow) / range) * 100 : 0;
+
+            const state = STATE_LABELS[q.marketState] ?? STATE_LABELS.CLOSED;
+            const dayPos = q.regularMarketChangePercent >= 0;
+            const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(0,238,255,0.02)';
 
             return (
-              <tr key={q.symbol} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
-                <td className="py-3 px-3">
-                  <div className="font-bold text-white">{q.symbol}</div>
-                  <div className="text-xs text-gray-500 truncate max-w-[120px]">{q.shortName}</div>
-                </td>
-                <td className="py-3 px-3 text-right font-mono font-semibold text-white">
-                  {fmt(q.regularMarketPrice)}
-                </td>
-                <td className={`py-3 px-3 text-right font-mono font-semibold ${dayPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {fmtPct(q.regularMarketChangePercent)}
-                </td>
-                <td className="py-3 px-3 text-right font-mono text-gray-300">
-                  {afterPrice != null ? fmt(afterPrice) : <span className="text-gray-600">—</span>}
-                </td>
-                <td className={`py-3 px-3 text-right font-mono font-semibold ${afterPct == null ? 'text-gray-600' : afterPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {afterPct != null ? fmtPct(afterPct) : '—'}
-                </td>
-                <td className="py-3 px-3 text-right text-gray-400 hidden sm:table-cell">
-                  {fmtVol(q.regularMarketVolume)}
-                </td>
-                <td className="py-3 px-3 hidden md:table-cell">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-gray-600 text-xs">{fmt(q.fiftyTwoWeekLow, 0)}</span>
-                    <div className="flex-1 bg-gray-700 rounded-full h-1.5 min-w-[60px]">
-                      <div
-                        className="bg-blue-500 h-1.5 rounded-full"
-                        style={{ width: `${Math.min(100, Math.max(0, pct52w))}%` }}
-                      />
-                    </div>
-                    <span className="text-gray-600 text-xs">{fmt(q.fiftyTwoWeekHigh, 0)}</span>
+              <tr key={q.symbol} style={{ background: rowBg, borderBottom: '1px solid rgba(0,255,65,0.08)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,238,255,0.06)')}
+                onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
+
+                <td style={{ padding: '10px 10px' }}>
+                  <div style={{ fontFamily: 'VT323, monospace', fontSize: 18, color: isCustom ? 'var(--neon-yellow)' : 'var(--neon-cyan)', letterSpacing: 1 }}>
+                    {isCustom && <span style={{ fontSize: 12, marginRight: 3, color: 'var(--neon-yellow)' }}>★</span>}
+                    {q.symbol}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(0,238,255,0.4)', marginTop: 1, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {q.shortName}
                   </div>
                 </td>
-                <td className="py-3 px-3 text-center">
-                  <MarketStateChip state={q.marketState} />
+
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'VT323, monospace', fontSize: 20, color: 'var(--neon-cyan)' }}>
+                  {fmt(q.regularMarketPrice)}
                 </td>
-                <td className="py-3 px-2 text-center">
-                  {customTickers.includes(q.symbol) && onRemove && (
-                    <button
-                      onClick={() => onRemove(q.symbol)}
-                      className="text-gray-600 hover:text-red-400 transition-colors"
-                      title={`Remove ${q.symbol}`}
-                    >
-                      <X size={14} />
+
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'VT323, monospace', fontSize: 18 }}>
+                  {fmtPct(q.regularMarketChangePercent)}
+                </td>
+
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'VT323, monospace', fontSize: 18, color: 'rgba(0,238,255,0.7)' }}>
+                  {afterPrice != null ? fmt(afterPrice) : <span style={{ color: 'rgba(0,255,65,0.2)' }}>—</span>}
+                </td>
+
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'VT323, monospace', fontSize: 18 }}>
+                  {afterPct != null ? fmtPct(afterPct) : <span style={{ color: 'rgba(0,255,65,0.2)' }}>—</span>}
+                </td>
+
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 12, color: 'rgba(0,238,255,0.5)' }}>
+                  {fmtVol(q.regularMarketVolume)}
+                </td>
+
+                <td style={{ padding: '10px 10px', minWidth: 140 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 9, color: 'rgba(0,255,65,0.35)' }}>{fmt(q.fiftyTwoWeekLow, 0)}</span>
+                    <div style={{ flex: 1, background: 'rgba(0,255,65,0.1)', height: 4, minWidth: 60, border: '1px solid rgba(0,255,65,0.2)' }}>
+                      <div style={{ width: `${Math.min(100, Math.max(0, pct52))}%`, height: '100%', background: dayPos ? 'var(--neon-green)' : 'var(--neon-red)', boxShadow: `0 0 4px ${dayPos ? 'var(--neon-green)' : 'var(--neon-red)'}` }} />
+                    </div>
+                    <span style={{ fontSize: 9, color: 'rgba(0,255,65,0.35)' }}>{fmt(q.fiftyTwoWeekHigh, 0)}</span>
+                  </div>
+                </td>
+
+                <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                  <span style={{ fontSize: 10, fontWeight: 'bold', letterSpacing: 1, color: state.color, textShadow: `0 0 6px ${state.color}` }}>
+                    {state.label}
+                  </span>
+                </td>
+
+                <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                  {isCustom && onRemove && (
+                    <button onClick={() => onRemove(q.symbol)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,34,68,0.4)', fontSize: 14, padding: 0, fontFamily: 'monospace', transition: 'color 0.15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--neon-red)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,34,68,0.4)')}
+                      title={`Remove ${q.symbol}`}>
+                      ✕
                     </button>
                   )}
                 </td>

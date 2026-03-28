@@ -3,34 +3,51 @@ import { useMarketData, DEFAULT_STOCK_SYMBOLS } from '../hooks/useMarketData';
 import IndexCard from './IndexCard';
 import VolatilityChart from './VolatilityChart';
 import StocksTable from './StocksTable';
-import { RefreshCw, TrendingUp, Clock, Plus } from 'lucide-react';
 
 const STORAGE_KEY = 'market-dashboard-custom-tickers';
 
 function loadCustomTickers(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); }
+  catch { return []; }
 }
 
 function MarketStatusBanner({ marketState }: { marketState?: string }) {
-  if (!marketState) return null;
-  const configs: Record<string, { label: string; desc: string; cls: string }> = {
-    REGULAR:  { label: 'Market Open',   desc: 'NYSE & NASDAQ trading in session',              cls: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
-    PRE:      { label: 'Pre-Market',    desc: 'Extended hours trading 4:00 AM – 9:30 AM ET',   cls: 'bg-blue-500/10 border-blue-500/30 text-blue-400' },
-    PREPRE:   { label: 'Pre-Market',    desc: 'Extended hours trading 4:00 AM – 9:30 AM ET',   cls: 'bg-blue-500/10 border-blue-500/30 text-blue-400' },
-    POST:     { label: 'After Hours',   desc: 'Extended hours trading 4:00 PM – 8:00 PM ET',   cls: 'bg-purple-500/10 border-purple-500/30 text-purple-400' },
-    POSTPOST: { label: 'After Hours',   desc: 'Extended hours trading 4:00 PM – 8:00 PM ET',   cls: 'bg-purple-500/10 border-purple-500/30 text-purple-400' },
-    CLOSED:   { label: 'Market Closed', desc: 'Regular trading hours: 9:30 AM – 4:00 PM ET',   cls: 'bg-gray-500/10 border-gray-500/30 text-gray-400' },
+  const configs: Record<string, { label: string; color: string }> = {
+    REGULAR:  { label: '▶ MARKET OPEN',   color: 'var(--neon-green)' },
+    PRE:      { label: '◀ PRE-MARKET',     color: 'var(--neon-cyan)' },
+    PREPRE:   { label: '◀ PRE-MARKET',     color: 'var(--neon-cyan)' },
+    POST:     { label: '■ AFTER HOURS',    color: 'var(--neon-magenta)' },
+    POSTPOST: { label: '■ AFTER HOURS',    color: 'var(--neon-magenta)' },
+    CLOSED:   { label: '● MARKET CLOSED',  color: 'var(--neon-orange)' },
   };
-  const cfg = configs[marketState] ?? configs.CLOSED;
+  const cfg = configs[marketState ?? 'CLOSED'] ?? configs.CLOSED;
   return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs ${cfg.cls}`}>
-      <Clock size={12} />
-      <span className="font-semibold">{cfg.label}</span>
-      <span className="text-current opacity-70">· {cfg.desc}</span>
+    <span className="blink text-xs font-bold tracking-widest" style={{ color: cfg.color, textShadow: `0 0 8px ${cfg.color}` }}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function TickerTape({ quotes }: { quotes: { symbol: string; regularMarketChangePercent: number; regularMarketPrice: number }[] }) {
+  const items = [...quotes, ...quotes];
+  return (
+    <div style={{ background: '#000', borderTop: '1px solid var(--neon-green)', borderBottom: '1px solid var(--neon-green)', overflow: 'hidden', height: 28 }} className="flex items-center">
+      <div className="marquee-track whitespace-nowrap text-xs font-bold tracking-wider" style={{ color: 'var(--neon-green)' }}>
+        {items.map((q, i) => {
+          const pos = q.regularMarketChangePercent >= 0;
+          return (
+            <span key={i} className="mx-6">
+              <span style={{ color: 'var(--neon-cyan)' }}>{q.symbol}</span>
+              {' '}
+              <span>{q.regularMarketPrice.toFixed(2)}</span>
+              {' '}
+              <span style={{ color: pos ? 'var(--neon-green)' : 'var(--neon-red)' }}>
+                {pos ? '▲' : '▼'}{Math.abs(q.regularMarketChangePercent).toFixed(2)}%
+              </span>
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -50,10 +67,7 @@ export default function MarketDashboard() {
   function addTicker() {
     const ticker = input.trim().toUpperCase();
     if (!ticker) return;
-    if (allStockSymbols.includes(ticker)) {
-      setInputError(`${ticker} is already on the list`);
-      return;
-    }
+    if (allStockSymbols.includes(ticker)) { setInputError(`${ticker} ALREADY TRACKED`); return; }
     const updated = [...customTickers, ticker];
     setCustomTickers(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
@@ -70,59 +84,77 @@ export default function MarketDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-gray-400 text-sm">Fetching market data…</p>
+      <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--neon-green)', fontFamily: 'VT323, monospace', fontSize: 32 }} className="glow-green flicker">
+          <div className="blink">█ LOADING MARKET DATA █</div>
+          <div style={{ fontSize: 18, marginTop: 8, color: 'var(--neon-cyan)' }}>PLEASE WAIT...</div>
         </div>
       </div>
     );
   }
 
+  const allQuotes = [...(data?.indices ?? []), ...(data?.stocks ?? [])];
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }} className="flicker">
+
+      {/* Ticker tape */}
+      <TickerTape quotes={allQuotes.filter(q => q.symbol !== '^VIX')} />
+
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2.5">
-            <TrendingUp className="text-blue-400" size={22} />
-            <h1 className="text-lg font-bold tracking-tight">Market Volatility Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {marketState && <MarketStatusBanner marketState={marketState} />}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isLive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-              {isLive ? '● Live' : '● Delayed'}
+      <header style={{ background: 'var(--bg-header)', borderBottom: '2px solid var(--neon-cyan)', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: 'VT323, monospace', fontSize: 28 }} className="rainbow-text">
+              ◈ MARKET.EXE ◈
             </span>
-            <button onClick={refetch} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors">
-              <RefreshCw size={12} />
-              Refresh
+            <span style={{ fontFamily: 'VT323, monospace', fontSize: 18, color: 'var(--neon-yellow)', letterSpacing: 2 }} className="glow-yellow">
+              v2.0 VOLATILITY DASHBOARD
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            {marketState && <MarketStatusBanner marketState={marketState} />}
+            <span style={{ fontSize: 11, fontWeight: 'bold', letterSpacing: 2, padding: '2px 8px', border: `1px solid ${isLive ? 'var(--neon-green)' : 'var(--neon-yellow)'}`, color: isLive ? 'var(--neon-green)' : 'var(--neon-yellow)' }} className={isLive ? 'glow-green' : 'glow-yellow'}>
+              {isLive ? '◉ LIVE' : '◎ CACHED'}
+            </span>
+            <button onClick={refetch} style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', cursor: 'pointer', fontFamily: 'Share Tech Mono, monospace', fontSize: 11, letterSpacing: 1 }} className="glow-cyan">
+              ↺ REFRESH
             </button>
-            {data && <span className="text-xs text-gray-600">Updated {data.lastUpdated.toLocaleTimeString()}</span>}
+            {data && <span style={{ fontSize: 10, color: 'rgba(0,255,65,0.4)', letterSpacing: 1 }}>UPD: {data.lastUpdated.toLocaleTimeString()}</span>}
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <main style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px' }}>
+
         {/* Indices */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Major Indices</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <section style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: 'VT323, monospace', fontSize: 20, color: 'var(--neon-magenta)', letterSpacing: 4, marginBottom: 10, borderBottom: '1px solid var(--neon-magenta)', paddingBottom: 4 }} className="glow-magenta">
+            ╔══ MAJOR INDICES ══╗
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             {data?.indices.map(q => <IndexCard key={q.symbol} quote={q} />)}
           </div>
         </section>
 
         {/* VIX Chart */}
-        <section className="bg-gray-800 rounded-xl border border-gray-700 p-5">
-          <div className="flex items-center justify-between mb-4">
+        <section style={{ background: 'var(--bg-card)', border: '1px solid var(--neon-magenta)', marginBottom: 20, padding: 20 }} className="box-glow-magenta">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <h2 className="text-base font-bold">VIX — Volatility Index (90-Day)</h2>
-              <p className="text-xs text-gray-500 mt-0.5">CBOE Volatility Index measuring S&amp;P 500 expected volatility over the next 30 days</p>
+              <div style={{ fontFamily: 'VT323, monospace', fontSize: 22, color: 'var(--neon-magenta)', letterSpacing: 3 }} className="glow-magenta">
+                ◈ VIX — FEAR INDEX (90-DAY)
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(0,238,255,0.6)', letterSpacing: 1, marginTop: 2 }}>
+                CBOE VOLATILITY INDEX // S&P 500 IMPLIED VOLATILITY
+              </div>
             </div>
             {vixQuote && (
-              <div className="text-right">
-                <div className="text-2xl font-bold">{vixQuote.regularMarketPrice.toFixed(2)}</div>
-                <div className={`text-sm font-semibold ${vixQuote.regularMarketChangePercent >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {vixQuote.regularMarketChangePercent >= 0 ? '+' : ''}{vixQuote.regularMarketChangePercent.toFixed(2)}%
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'VT323, monospace', fontSize: 42, color: 'var(--neon-yellow)', lineHeight: 1 }} className="glow-yellow">
+                  {vixQuote.regularMarketPrice.toFixed(2)}
+                </div>
+                <div style={{ fontFamily: 'VT323, monospace', fontSize: 20, color: vixQuote.regularMarketChangePercent >= 0 ? 'var(--neon-red)' : 'var(--neon-green)' }}>
+                  {vixQuote.regularMarketChangePercent >= 0 ? '▲' : '▼'} {Math.abs(vixQuote.regularMarketChangePercent).toFixed(2)}%
                 </div>
               </div>
             )}
@@ -131,47 +163,42 @@ export default function MarketDashboard() {
         </section>
 
         {/* Stocks Table */}
-        <section className="bg-gray-800 rounded-xl border border-gray-700">
-          <div className="p-5 border-b border-gray-700 flex items-start justify-between gap-4 flex-wrap">
+        <section style={{ background: 'var(--bg-card)', border: '1px solid var(--neon-cyan)' }} className="box-glow-cyan">
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--neon-cyan)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h2 className="text-base font-bold">Stocks & ETFs</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Including pre-market and after-hours extended trading prices</p>
+              <div style={{ fontFamily: 'VT323, monospace', fontSize: 22, color: 'var(--neon-cyan)', letterSpacing: 3 }} className="glow-cyan">
+                ◈ STOCKS &amp; ETFs
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(0,238,255,0.5)', letterSpacing: 1, marginTop: 2 }}>
+                PRE-MARKET // AFTER-HOURS // EXTENDED TRADING
+              </div>
             </div>
-            {/* Add ticker input */}
-            <div className="flex flex-col items-end gap-1">
-              <form
-                className="flex items-center gap-2"
-                onSubmit={e => { e.preventDefault(); addTicker(); }}
-              >
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              <form style={{ display: 'flex', gap: 8 }} onSubmit={e => { e.preventDefault(); addTicker(); }}>
                 <input
                   ref={inputRef}
                   value={input}
                   onChange={e => { setInput(e.target.value.toUpperCase()); setInputError(''); }}
-                  placeholder="Add ticker…"
+                  placeholder="ADD TICKER..."
                   maxLength={10}
-                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 w-32"
+                  className="retro"
+                  style={{ padding: '6px 10px', fontSize: 13, width: 140, borderRadius: 0 }}
                 />
-                <button
-                  type="submit"
-                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
-                >
-                  <Plus size={14} />
-                  Add
+                <button type="submit" className="retro-btn" style={{ padding: '6px 14px', fontSize: 13, borderRadius: 0 }}>
+                  + ADD
                 </button>
               </form>
-              {inputError && <p className="text-xs text-red-400">{inputError}</p>}
+              {inputError && <div style={{ fontSize: 11, color: 'var(--neon-red)' }} className="blink">{inputError}</div>}
             </div>
           </div>
-          <StocksTable
-            quotes={data?.stocks ?? []}
-            customTickers={customTickers}
-            onRemove={removeTicker}
-          />
+          <StocksTable quotes={data?.stocks ?? []} customTickers={customTickers} onRemove={removeTicker} />
         </section>
 
-        <footer className="text-center text-xs text-gray-600 pb-4">
-          Data sourced from Yahoo Finance · Refreshes every 30 seconds · After-hours prices may have 15-min delay
-        </footer>
+        {/* Footer */}
+        <div style={{ textAlign: 'center', padding: '20px 0 8px', fontSize: 11, color: 'rgba(0,255,65,0.3)', letterSpacing: 2 }}>
+          DATA: YAHOO FINANCE // AUTO-REFRESH: 30S // AFTER-HRS MAY BE DELAYED
+          <span className="blink" style={{ marginLeft: 8 }}>█</span>
+        </div>
       </main>
     </div>
   );

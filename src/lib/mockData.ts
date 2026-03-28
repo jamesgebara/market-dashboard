@@ -66,3 +66,30 @@ export function getMockIndices(): Quote[] {
 export function getMockStocks(): Quote[] {
   return baseStocks.map(q => ({ ...q, marketState: state }));
 }
+
+// Generate a plausible placeholder quote for any unknown symbol
+export function getPlaceholderQuote(symbol: string): Quote {
+  const seed2 = symbol.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const price = jitter(50 + (seed2 % 200), 0.01, seed2);
+  const changePct = jitter(0, 0.05, seed2 + 1);
+  const change = price * changePct / 100;
+  return {
+    symbol,
+    shortName: symbol,
+    marketState: state,
+    regularMarketPrice: price,
+    regularMarketChange: change,
+    regularMarketChangePercent: changePct,
+    regularMarketPreviousClose: price - change,
+    regularMarketOpen: jitter(price, 0.005, seed2 + 2),
+    regularMarketDayHigh: price * 1.01,
+    regularMarketDayLow: price * 0.99,
+    regularMarketVolume: Math.floor(jitter(5000000, 0.3, seed2 + 3)),
+    postMarketPrice: jitter(price, 0.003, seed2 + 4),
+    postMarketChangePercent: jitter(0, 0.02, seed2 + 5),
+    preMarketPrice: jitter(price, 0.003, seed2 + 6),
+    preMarketChangePercent: jitter(0, 0.02, seed2 + 7),
+    fiftyTwoWeekHigh: price * 1.4,
+    fiftyTwoWeekLow: price * 0.6,
+  };
+}

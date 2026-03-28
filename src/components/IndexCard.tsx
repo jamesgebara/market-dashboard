@@ -12,81 +12,74 @@ function fmt(n: number, decimals = 2) {
   return n?.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) ?? '—';
 }
 
-function fmtPct(n: number) {
-  if (n == null) return '—';
-  return `${n >= 0 ? '+' : ''}${fmt(n)}%`;
-}
-
-interface Props {
-  quote: Quote;
-}
+interface Props { quote: Quote; }
 
 export default function IndexCard({ quote }: Props) {
   const isVix = quote.symbol === '^VIX';
   const name = INDEX_NAMES[quote.symbol] ?? quote.shortName;
-  const change = quote.regularMarketChange;
-  const changePct = quote.regularMarketChangePercent;
-  const positive = change >= 0;
+  const positive = quote.regularMarketChange >= 0;
 
-  // After hours data
   const hasPost = quote.marketState === 'POST' || quote.marketState === 'POSTPOST';
-  const hasPre = quote.marketState === 'PRE' || quote.marketState === 'PREPRE';
-  const afterPrice = hasPost ? quote.postMarketPrice : hasPre ? quote.preMarketPrice : null;
-  const afterChangePct = hasPost ? quote.postMarketChangePercent : hasPre ? quote.preMarketChangePercent : null;
-  const afterPositive = (afterChangePct ?? 0) >= 0;
+  const hasPre  = quote.marketState === 'PRE'  || quote.marketState === 'PREPRE';
+  const afterPrice  = hasPost ? quote.postMarketPrice  : hasPre ? quote.preMarketPrice  : null;
+  const afterPct    = hasPost ? quote.postMarketChangePercent : hasPre ? quote.preMarketChangePercent : null;
+  const afterPos    = (afterPct ?? 0) >= 0;
 
-  const vixLabel = isVix
-    ? quote.regularMarketPrice < 15 ? 'Low Volatility'
-    : quote.regularMarketPrice < 20 ? 'Normal'
-    : quote.regularMarketPrice < 30 ? 'Elevated'
-    : quote.regularMarketPrice < 40 ? 'High'
-    : 'Extreme Fear'
+  const vixLevel = isVix
+    ? quote.regularMarketPrice < 15 ? { label: 'CALM',    color: 'var(--neon-green)' }
+    : quote.regularMarketPrice < 20 ? { label: 'LOW',     color: 'var(--neon-cyan)' }
+    : quote.regularMarketPrice < 30 ? { label: 'ELEVATED',color: 'var(--neon-yellow)' }
+    : quote.regularMarketPrice < 40 ? { label: 'HIGH',    color: 'var(--neon-orange)' }
+    : { label: '⚠ EXTREME', color: 'var(--neon-red)' }
     : null;
 
-  const vixColor = isVix
-    ? quote.regularMarketPrice < 15 ? 'text-emerald-400'
-    : quote.regularMarketPrice < 20 ? 'text-blue-400'
-    : quote.regularMarketPrice < 30 ? 'text-yellow-400'
-    : quote.regularMarketPrice < 40 ? 'text-orange-400'
-    : 'text-red-400'
-    : '';
+  const borderColor = isVix ? 'var(--neon-magenta)' : positive ? 'var(--neon-green)' : 'var(--neon-red)';
+  const priceColor  = isVix ? 'var(--neon-yellow)' : 'var(--neon-cyan)';
 
   return (
-    <div className={`bg-gray-800 rounded-xl p-4 border ${isVix ? 'border-purple-500/40' : 'border-gray-700'} hover:border-gray-500 transition-colors`}>
-      <div className="flex justify-between items-start mb-1">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{name}</span>
-        {isVix && vixLabel && (
-          <span className={`text-xs font-bold ${vixColor}`}>{vixLabel}</span>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: `1px solid ${borderColor}`,
+      boxShadow: `0 0 8px ${borderColor}33`,
+      padding: 12,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 10, letterSpacing: 3, color: 'rgba(0,238,255,0.7)', fontFamily: 'Share Tech Mono, monospace' }}>
+          {name}
+        </span>
+        {vixLevel && (
+          <span style={{ fontSize: 10, fontWeight: 'bold', color: vixLevel.color, letterSpacing: 1, textShadow: `0 0 6px ${vixLevel.color}` }}>
+            {vixLevel.label}
+          </span>
         )}
       </div>
 
-      <div className="flex items-baseline gap-2 mt-1">
-        <span className="text-2xl font-bold text-white">{fmt(quote.regularMarketPrice)}</span>
-        <span className={`text-sm font-semibold ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
-          {fmtPct(changePct)}
-        </span>
+      <div style={{ fontFamily: 'VT323, monospace', fontSize: 36, color: priceColor, lineHeight: 1, textShadow: `0 0 10px ${priceColor}` }}>
+        {fmt(quote.regularMarketPrice)}
       </div>
 
-      <div className={`text-xs mt-0.5 ${positive ? 'text-emerald-500' : 'text-red-500'}`}>
-        {change >= 0 ? '+' : ''}{fmt(change)} pts
+      <div style={{ fontFamily: 'VT323, monospace', fontSize: 18, color: positive ? 'var(--neon-green)' : 'var(--neon-red)', marginTop: 2 }}>
+        {positive ? '▲' : '▼'} {Math.abs(quote.regularMarketChangePercent).toFixed(2)}%
       </div>
 
       {afterPrice != null && (
-        <div className={`mt-2 pt-2 border-t border-gray-700 flex items-center justify-between`}>
-          <span className="text-xs text-gray-500">{hasPost ? 'After Hours' : 'Pre-Market'}</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold text-gray-200">{fmt(afterPrice)}</span>
-            {afterChangePct != null && (
-              <span className={`text-xs font-semibold ${afterPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                {fmtPct(afterChangePct)}
+        <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${borderColor}44`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 9, color: 'rgba(0,238,255,0.5)', letterSpacing: 1 }}>
+            {hasPost ? 'A/H' : 'PRE'}
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontFamily: 'VT323, monospace', fontSize: 16, color: 'rgba(0,238,255,0.85)' }}>{fmt(afterPrice)}</span>
+            {afterPct != null && (
+              <span style={{ fontFamily: 'VT323, monospace', fontSize: 14, color: afterPos ? 'var(--neon-green)' : 'var(--neon-red)' }}>
+                {afterPos ? '▲' : '▼'}{Math.abs(afterPct).toFixed(2)}%
               </span>
             )}
           </div>
         </div>
       )}
 
-      <div className="mt-2 text-xs text-gray-600">
-        H: {fmt(quote.regularMarketDayHigh)} · L: {fmt(quote.regularMarketDayLow)}
+      <div style={{ marginTop: 4, fontSize: 9, color: 'rgba(0,255,65,0.3)', letterSpacing: 1 }}>
+        H:{fmt(quote.regularMarketDayHigh)} L:{fmt(quote.regularMarketDayLow)}
       </div>
     </div>
   );
