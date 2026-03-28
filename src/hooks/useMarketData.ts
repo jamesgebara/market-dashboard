@@ -5,8 +5,7 @@ const INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^DJI', '^RUT', '^VIX'];
 const STOCK_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AMD', 'SPY', 'QQQ'];
 
 async function fetchQuotes(symbols: string[]): Promise<Quote[]> {
-  const encoded = symbols.map(s => encodeURIComponent(s)).join(',');
-  const res = await fetch(`/api/quotes?symbols=${encoded}`);
+  const res = await fetch(`/api/quotes?symbols=${symbols.join(',')}`);
   if (!res.ok) throw new Error('Failed to fetch quotes');
   const data = await res.json();
   return data.quoteResponse?.result ?? [];

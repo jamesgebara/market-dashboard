@@ -37,7 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!symbols) return res.status(400).json({ error: 'symbols required' });
 
   try {
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(String(symbols))}&fields=${FIELDS}`;
+    const symbolList = String(symbols).split(',').map(s => encodeURIComponent(s.trim())).join(',');
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbolList}&fields=${FIELDS}`;
     const data = await yahooFetch(url);
     res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=30');
     res.json(data);
