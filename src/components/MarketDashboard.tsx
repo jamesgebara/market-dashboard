@@ -2,7 +2,7 @@ import { useMarketData } from '../hooks/useMarketData';
 import IndexCard from './IndexCard';
 import VolatilityChart from './VolatilityChart';
 import StocksTable from './StocksTable';
-import { RefreshCw, TrendingUp, AlertTriangle, Clock } from 'lucide-react';
+import { RefreshCw, TrendingUp, Clock } from 'lucide-react';
 
 function MarketStatusBanner({ marketState }: { marketState?: string }) {
   if (!marketState) return null;
@@ -27,7 +27,7 @@ function MarketStatusBanner({ marketState }: { marketState?: string }) {
 }
 
 export default function MarketDashboard() {
-  const { data, loading, error, refetch } = useMarketData(30000);
+  const { data, loading, refetch, isLive } = useMarketData(30000);
 
   const vixQuote = data?.indices.find(q => q.symbol === '^VIX');
   const marketState = data?.indices[0]?.marketState;
@@ -43,20 +43,6 @@ export default function MarketDashboard() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center max-w-sm">
-          <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-          <p className="text-white font-semibold mb-1">Failed to load market data</p>
-          <p className="text-gray-400 text-sm mb-4">{error}</p>
-          <button onClick={refetch} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -69,6 +55,9 @@ export default function MarketDashboard() {
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {marketState && <MarketStatusBanner marketState={marketState} />}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isLive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+              {isLive ? '● Live' : '● Delayed'}
+            </span>
             <button
               onClick={refetch}
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
