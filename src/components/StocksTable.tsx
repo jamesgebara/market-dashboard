@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import type { Quote } from '../types/market';
 
 function fmt(n: number, decimals = 2) {
@@ -17,6 +18,8 @@ function fmtVol(n: number) {
 
 interface Props {
   quotes: Quote[];
+  customTickers?: string[];
+  onRemove?: (ticker: string) => void;
 }
 
 function MarketStateChip({ state }: { state: Quote['marketState'] }) {
@@ -34,7 +37,7 @@ function MarketStateChip({ state }: { state: Quote['marketState'] }) {
   );
 }
 
-export default function StocksTable({ quotes }: Props) {
+export default function StocksTable({ quotes, customTickers = [], onRemove }: Props) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -48,6 +51,7 @@ export default function StocksTable({ quotes }: Props) {
             <th className="text-right py-2 px-3 hidden sm:table-cell">Volume</th>
             <th className="text-right py-2 px-3 hidden md:table-cell">52W Range</th>
             <th className="text-center py-2 px-3">Status</th>
+            <th className="py-2 px-2"></th>
           </tr>
         </thead>
         <tbody>
@@ -97,6 +101,17 @@ export default function StocksTable({ quotes }: Props) {
                 </td>
                 <td className="py-3 px-3 text-center">
                   <MarketStateChip state={q.marketState} />
+                </td>
+                <td className="py-3 px-2 text-center">
+                  {customTickers.includes(q.symbol) && onRemove && (
+                    <button
+                      onClick={() => onRemove(q.symbol)}
+                      className="text-gray-600 hover:text-red-400 transition-colors"
+                      title={`Remove ${q.symbol}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </td>
               </tr>
             );

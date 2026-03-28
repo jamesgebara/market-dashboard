@@ -3,7 +3,7 @@ import type { MarketData, Quote, ChartPoint } from '../types/market';
 import { getMockIndices, getMockStocks, generateVixHistory } from '../lib/mockData';
 
 const INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^DJI', '^RUT', '^VIX'];
-const STOCK_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AMD', 'SPY', 'QQQ'];
+export const DEFAULT_STOCK_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AMD', 'SPY', 'QQQ'];
 
 async function fetchQuotes(symbols: string[]): Promise<Quote[] | null> {
   try {
@@ -35,15 +35,18 @@ async function fetchVixHistory(): Promise<ChartPoint[] | null> {
   }
 }
 
-export function useMarketData(refreshInterval = 30000) {
+export function useMarketData(stockSymbols: string[], refreshInterval = 30000) {
   const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLive, setIsLive] = useState(false);
 
+  const symbolsKey = stockSymbols.join(',');
+
   const fetchAll = useCallback(async () => {
+    const symbols = symbolsKey.split(',');
     const [liveIndices, liveStocks, liveVix] = await Promise.all([
       fetchQuotes(INDEX_SYMBOLS),
-      fetchQuotes(STOCK_SYMBOLS),
+      fetchQuotes(symbols),
       fetchVixHistory(),
     ]);
 
@@ -56,7 +59,7 @@ export function useMarketData(refreshInterval = 30000) {
       lastUpdated: new Date(),
     });
     setLoading(false);
-  }, []);
+  }, [symbolsKey]);
 
   useEffect(() => {
     fetchAll();
